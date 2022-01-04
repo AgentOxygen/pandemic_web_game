@@ -1,5 +1,5 @@
 import json
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, url_for
 from uuid import uuid4
 from datetime import datetime
 
@@ -10,6 +10,13 @@ logins = {"cam":{"display_name": "Cameron", "game_instance": "none", "logins": 0
 instances = {}
 max_players = 4
 
+roles = {
+    1:"Medic",
+    2:"Scientist",
+    3:"Quarantine Specialist",
+    4:"Logistics Operator",
+    5:"Researcher"
+}
 
 cities = {
     1:"Seattle",
@@ -39,16 +46,69 @@ connections = {
     5:[1, 2, 3, 4, 6],
     6:[3, 5, 9, 10],
     7:[4, 5, 8, 9, 11, 12],
-    8:[],
-    9:[],
-    10:[],
-    11:[],
-    12:[],
-    13:[],
-    14:[],
-    15:[],
-    16:[],
-    17:[],
+    8:[4, 7, 11, 14],
+    9:[7, 6, 11],
+    10:[6, 9, 12, 13],
+    11:[8, 7, 12, 14],
+    12:[11, 7, 14, 15, 16],
+    13:[10, 16, 17],
+    14:[8, 11, 12, 15],
+    15:[14, 12, 16, 17],
+    16:[12, 13, 15],
+    17:[13, 15],
+}
+
+# For reference
+init_game_data = {
+    # Everyone starts in Atlanta
+    "player_role_locations": {
+        #"Player ID": [City number, role number]
+        "A": [16, 1],
+        "B": [16, 2],
+        "C": [16, 4],
+        "D": [16, 5] # these are examples, they're replaced in initialization
+    },
+    "city_disease_counts":{
+        #"City number": [Virus 1, Virus 2, Virus 3, Virus 4]
+        1:[0, 0, 0, 0],
+        2:[0, 0, 0, 0],
+        3:[0, 0, 0, 0],
+        4:[0, 0, 0, 0],
+        5:[0, 0, 0, 0],
+        6:[0, 0, 0, 0],
+        7:[0, 0, 0, 0],
+        8:[0, 0, 0, 0],
+        9:[0, 0, 0, 0],
+        10:[0, 0, 0, 0],
+        11:[0, 0, 0, 0],
+        12:[0, 0, 0, 0],
+        13:[0, 0, 0, 0],
+        14:[0, 0, 0, 0],
+        15:[0, 0, 0, 0],
+        16:[0, 0, 0, 0],
+        17:[0, 0, 0, 0]
+    },
+    "city_populations":{ # I might use these later, for now every city has 1 million people in it
+        1:1000000,
+        2:1000000,
+        3:1000000,
+        4:1000000,
+        5:1000000,
+        6:1000000,
+        7:1000000,
+        8:1000000,
+        9:1000000,
+        10:1000000,
+        11:1000000,
+        12:1000000,
+        13:1000000,
+        14:1000000,
+        15:1000000,
+        16:1000000,
+        17:1000000
+    },
+    # List of cards drawn, might be used later
+    "cards_drawn":[]
 }
 
 @app.route('/')
@@ -82,9 +142,24 @@ def start_game():
         return "invalid instance ID"
     if instances[instance_id]["host"] == user_id:
         instances[instance_id]["game_stage"] = "in_game"
+        instances[instance_id]["game_data"] = init_game_data
+        return "starting"
     else:
         return "not host"
-    
+
+
+@app.route('/leavegame')
+def leave_game():
+    instance_id = request.args.get('code', default='', type=str)
+    user_id = request.args.get('id', default='', type=str)
+    if instance_id in instances:
+        for index, (player_id, player_dn) in enumerate(instances[instance_id]["players"]):
+            if player_id == user_id:
+                instances[instance_id]["players"].pop(index)
+                return "left game"
+        return "not in specified instance"
+    else:
+        return "invalid instance ID"
 
 @app.route('/creategame')
 def create_instance():
@@ -133,7 +208,8 @@ def decode_move(move, instance_id):
     # B# - burns card to city
     # P# - moves to player in another city
     # For card played where # indicates the card number: C#
-
+    pass
+    
 @app.route("/play")
 def play_move():
     instance_id = request.args.get('code', default='', type=str)
@@ -141,7 +217,10 @@ def play_move():
     move_code = request.args.get('move', default='', type=str)
     if instance_id in instances:
         if user_id == instances[instance_id]["game_data"]["active_player"]:
-            decode_move(instance_id, move)
+            if decode_move(instance_id, move):
+                return "moved"
+            else:
+                return "invalid move"
         else:
             return "not active player"
     else:

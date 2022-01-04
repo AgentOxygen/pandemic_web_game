@@ -93,6 +93,7 @@
 			return response.text().then(function(response_msg) {
 				if (response_msg == game_code || response_msg == "joined"){
 					user_game_code = game_code
+					continue_updating = true;
 					if (control_update){
 						control_update = false;
 						game_update_loop();
@@ -117,11 +118,29 @@
 	}
 	
 	function leave_game(){
-		
+		document.getElementById('lobby_pane').style.display = "none";
+		document.getElementById('init_menu_pane').style.display = "inline";
+		continue_updating = false;
+		control_update = true;
+		fetch(domain + "leavegame?code=" + user_game_code + "&id=" + user_id).then(function(response) {
+			return response.text().then(function(msg_str) {
+				if (msg_str != "left game"){
+					alert("Error response code: " + msg_str);
+				}
+			});
+		});
 	}
 	
 	function host_start_game(){
-		
+		document.getElementById('lobby_pane').style.display = "none";
+		document.getElementById('in_game_pane').style.display = "inline";
+		fetch(domain + "startgame?code=" + user_game_code + "&id=" + user_id).then(function(response) {
+			return response.text().then(function(msg_str) {
+				if (msg_str != "starting"){
+					alert("Error response code: " + msg_str);
+				}
+			});
+		});
 	}
 	
 	function delay(time) {
@@ -158,6 +177,22 @@
 				});
 			});
 			await delay(update_delay);
+		}
+	}
+	
+	function visible_cities(){
+		if (document.getElementById('img_cities_layer').style.display == "none"){
+			document.getElementById('img_cities_layer').style.display = "inline";
+		}else{
+			document.getElementById('img_cities_layer').style.display = "none";
+		}
+	}
+	
+	function visible_paths(){
+		if (document.getElementById('img_paths_layer').style.display == "none"){
+			document.getElementById('img_paths_layer').style.display = "inline";
+		}else{
+			document.getElementById('img_paths_layer').style.display = "none";
 		}
 	}
 	
@@ -207,6 +242,16 @@
 	<div id ="text_players" style="height:280px;width:420px;border:2px solid #ccc;font:26px/46px Georgia, Garamond, Serif;overflow:auto;"></div>
 	<button id="button_host_start_game" onclick="host_start_game()" style="display: none"> Start Game </button>
 	<button id="button_leave_game" onclick="leave_game()"> Leave Game </button>
+</div>
+<div id="in_game_pane" style="display: none">
+	<input type="checkbox" id="checkbox_cities" value="Cities" onclick="visible_cities()">
+	<label for="checkbox_cities"> Cities </label>
+	<input type="checkbox" id="checkbox_paths" value="Paths" onclick="visible_paths()">
+	<label for="checkbox_paths"> Paths </label>
+	<br>
+	<img src="{{url_for('static', filename='map_base.png')}}" style="z-index: 10; position: absolute"/>
+	<img id="img_cities_layer" src="{{url_for('static', filename='map_cities.png')}}" style="z-index: 20; position: absolute; display: none"/>
+	<img id="img_paths_layer" src="{{url_for('static', filename='map_paths.png')}}" style="z-index: 30; position: absolute; display: none"/>
 </div>
 
 
