@@ -1,0 +1,127 @@
+<html>
+<head>
+	<style>
+	.borderexample {
+		border-style:solid;
+		border-color:#287EC7;
+	}
+	</style>
+	<script>
+	var domain = document.location;
+	var user_id = null, user_dn = null, user_logins = null, user_game_instance = null;
+	
+	function login(){
+		var login_id = document.getElementById('input_login_id').value;
+		var url = (domain + "login?id=" + login_id);
+		if (login_id == ""){
+			alert("Please enter a valid login ID");
+			return false;
+		}
+
+		fetch(url).then(function(response) {
+			return response.text().then(function(user_info) {
+				if (user_info != "no_login"){
+					user_info = JSON.parse(user_info);
+					user_dn = user_info["display_name"];
+					user_id = user_info["login_id"];
+					user_logins = user_info["logins"];
+					user_game_instance = user_info["game_instance"];
+					console.log(user_info);
+					exit_login_pane();
+				}else{
+					alert("Login ID does not exist.");
+					return false;
+				}
+			});
+		});
+		return true;
+	}
+	
+	function create_login(){
+		var login_id = document.getElementById('input_login_id').value;
+		var login_dn = document.getElementById('input_login_dn').value;
+		var url = (domain + "createlogin?id=" + login_id + "&dn=" + login_dn);
+		if (login_id == ""){
+			alert("Please enter a valid login ID");
+			return false;
+		}
+		if (login_dn == ""){
+			alert("Please enter a valid display name");
+			return false;
+		}
+		
+		fetch(url).then(function(response) {
+			return response.text().then(function(user_info) {
+				if (user_info != "no_login"){
+					user_info = JSON.parse(user_info);
+					user_dn = user_info["display_name"];
+					user_id = user_info["login_id"];
+					user_logins = user_info["logins"];
+					user_game_instance = user_info["game_instance"];
+					console.log(user_info);
+					exit_login_pane();
+				}else{
+					alert("Login info creation failed!");
+					return false;
+				}
+			});
+		});
+		return true;
+	}
+	
+	function exit_login_pane(){
+		document.getElementById('login_pane').style.display = "none";
+		//document.getElementById('init_menu_pane').style.display = "inline";
+		document.getElementById('init_menu_user_dn').innerHTML = user_dn;
+		document.getElementById('lobby_pane').style.display = "inline";
+		update_chat();
+	}
+	
+	function delay(time) {
+		return new Promise(resolve => setTimeout(resolve, time));
+	}	
+	
+	async function update_chat(){
+		let timer = 0;
+		while (true) {
+			fetch(domain + "/chat").then(function(response) {
+				return response.text().then(function(chat_str) {
+					document.getElementById('text_output_chat').innerHTML = chat_str;
+				});
+			});
+			await delay(1000);
+		}
+	}
+	
+	function send_chat(){
+		msg = "[" + user_dn + "] " + document.getElementById('input_chat').value;
+		fetch(domain + "/sendchat?msg=" + msg).then(function(response) {
+			return response.text().then(function(chat_str) {});
+		});
+	}
+	
+	
+	
+	</script>
+</head>
+<body>
+<div id="login_pane">
+	Login ID: <input id="input_login_id"> </br>
+	Display Name: <input id="input_login_dn"> </br>
+	<button id="button_login" onclick="login()"> Login </button>
+	<button id="button_create_login" onclick="create_login()"> Create Login </button>
+</div>
+<div id="init_menu_pane" style="display: none">
+	<h2>Hello <span id="init_menu_user_dn" style="font-style: italic;"> </span>,</h2> <br>
+	<p style="margin-left: 40px">Game Code: <input id="input_game_code"></p>
+	<p style="margin-left: 40px"><button id="button_game_join" onclick="join_game()"> Join Game </button></p>
+</div>
+<div id="lobby_pane" style="display: none">
+	<input id="input_chat"><button id="button_send_chat_msg" onclick="send_chat()"> Send </button> </br>
+	<div id ="text_output_chat" style="height:420px;width:620px;border:1px solid #ccc;font:16px/26px Georgia, Garamond, Serif;overflow:auto;"></div>
+</div>
+
+
+
+</body>
+</html>
