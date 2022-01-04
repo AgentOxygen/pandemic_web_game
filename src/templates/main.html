@@ -7,8 +7,14 @@
 	}
 	</style>
 	<script>
+	// Settings
 	var domain = document.location;
-	var user_id = null, user_dn = null, user_logins = null, user_game_instance = null;
+	var user_id = null, user_dn = null, user_logins = null, user_game_code = null, user_game_instance = null;
+	var update_delay = 1000;
+	
+	// Global Variables
+	var continue_updating = true;
+	var control_update = true;
 	
 	function login(){
 		var login_id = document.getElementById('input_login_id').value;
@@ -23,7 +29,7 @@
 				if (user_info != "no_login"){
 					user_info = JSON.parse(user_info);
 					user_dn = user_info["display_name"];
-					user_id = user_info["login_id"];
+					user_id = login_id;
 					user_logins = user_info["logins"];
 					user_game_instance = user_info["game_instance"];
 					console.log(user_info);
@@ -55,7 +61,7 @@
 				if (user_info != "no_login"){
 					user_info = JSON.parse(user_info);
 					user_dn = user_info["display_name"];
-					user_id = user_info["login_id"];
+					user_id = login_id;
 					user_logins = user_info["logins"];
 					user_game_instance = user_info["game_instance"];
 					console.log(user_info);
@@ -71,12 +77,91 @@
 	
 	function exit_login_pane(){
 		document.getElementById('login_pane').style.display = "none";
-		//document.getElementById('init_menu_pane').style.display = "inline";
+		document.getElementById('init_menu_pane').style.display = "inline";
 		document.getElementById('init_menu_user_dn').innerHTML = user_dn;
-		document.getElementById('lobby_pane').style.display = "inline";
-		update_chat();
 	}
 	
+	function join_game(game_code=null){
+		if (game_code == null){
+			game_code = document.getElementById('input_game_code').value;
+		}
+		if (game_code == ""){
+			alert("Please enter a valid game code.");
+			return false;
+		}
+		fetch(domain + "joingame?code=" + game_code + "&id=" + user_id).then(function(response) {
+			return response.text().then(function(response_msg) {
+				if (response_msg == game_code || response_msg == "joined"){
+					user_game_code = game_code
+					if (control_update){
+						control_update = false;
+						game_update_loop();
+					}
+				}else if(response_msg == "max_players"){
+					alert("Max players in game code " + game_code);
+				}else{
+					alert("Response message: " + response_msg);
+				}
+			});
+		});
+		return true;
+	}
+	
+	function host_game(){
+		document.getElementById('button_host_start_game').style.display = "inline";
+		fetch(domain + "creategame?id=" + user_id).then(function(response) {
+			return response.text().then(function(game_code) {
+				join_game(game_code);
+			});
+		});
+	}
+	
+	function leave_game(){
+		
+	}
+	
+	function host_start_game(){
+		
+	}
+	
+	function delay(time) {
+		return new Promise(resolve => setTimeout(resolve, time));
+	}
+	
+	async function game_update_loop(){
+		document.getElementById('lobby_pane').style.display = "inline";
+		document.getElementById('init_menu_pane').style.display = "none";
+		document.getElementById('text_game_code').innerHTML = user_game_code;
+		
+		while (continue_updating) {
+			fetch(domain + "getgame?code=" + user_game_code).then(function(response) {
+				return response.text().then(function(instance_info) {
+					instance_info = JSON.parse(instance_info);
+					if (instance_info["stage"] == "in_game"){
+						if(document.getElementById('lobby_pane').style.display == "inline"){
+							document.getElementById('lobby_pane').style.display = "none";
+							document.getElementById('in_game_pane').style.display = "inline";
+						}
+					}else{
+						document.getElementById('text_players').innerHTML = "<u>Players</u>";
+						for (player of instance_info["players"]){
+							var suffix = "";
+							if (instance_info["host"] == user_id && player[0] != user_id){
+								suffix = "<button onclick='game_kick(" + player[0] + ")'> Kick </button>";
+							}else if (player[0] == user_id){
+								suffix = " (Me)";
+							}
+							document.getElementById('text_players').innerHTML += "<br>" + player[1] + suffix;
+						}
+					}
+					
+				});
+			});
+			await delay(update_delay);
+		}
+	}
+	
+	/* Async update example
 	function delay(time) {
 		return new Promise(resolve => setTimeout(resolve, time));
 	}	
@@ -99,7 +184,7 @@
 			return response.text().then(function(chat_str) {});
 		});
 	}
-	
+	*/
 	
 	
 	</script>
@@ -115,10 +200,13 @@
 	<h2>Hello <span id="init_menu_user_dn" style="font-style: italic;"> </span>,</h2> <br>
 	<p style="margin-left: 40px">Game Code: <input id="input_game_code"></p>
 	<p style="margin-left: 40px"><button id="button_game_join" onclick="join_game()"> Join Game </button></p>
+	<p style="margin-left: 40px"><button id="button_game_host" onclick="host_game()"> Host Game </button></p>
 </div>
 <div id="lobby_pane" style="display: none">
-	<input id="input_chat"><button id="button_send_chat_msg" onclick="send_chat()"> Send </button> </br>
-	<div id ="text_output_chat" style="height:420px;width:620px;border:1px solid #ccc;font:16px/26px Georgia, Garamond, Serif;overflow:auto;"></div>
+	<h2>Game Code: <span id="text_game_code"></span></h2>
+	<div id ="text_players" style="height:280px;width:420px;border:2px solid #ccc;font:26px/46px Georgia, Garamond, Serif;overflow:auto;"></div>
+	<button id="button_host_start_game" onclick="host_start_game()" style="display: none"> Start Game </button>
+	<button id="button_leave_game" onclick="leave_game()"> Leave Game </button>
 </div>
 
 
