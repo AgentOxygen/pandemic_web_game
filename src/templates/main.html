@@ -6,7 +6,40 @@
 		border-color:#287EC7;
 	}
 	</style>
-	<script>
+</head>
+<body>
+<div id="login_pane">
+	Login ID: <input id="input_login_id"> </br>
+	Display Name: <input id="input_login_dn"> </br>
+	<button id="button_login" onclick="login()"> Login </button>
+	<button id="button_create_login" onclick="create_login()"> Create Login </button>
+</div>
+<div id="init_menu_pane" style="display: none">
+	<h2>Hello <span id="init_menu_user_dn" style="font-style: italic;"> </span>,</h2> <br>
+	<p style="margin-left: 40px">Game Code: <input id="input_game_code"></p>
+	<p style="margin-left: 40px"><button id="button_game_join" onclick="join_game()"> Join Game </button></p>
+	<p style="margin-left: 40px"><button id="button_game_host" onclick="host_game()"> Host Game </button></p>
+</div>
+<div id="lobby_pane" style="display: none">
+	<h2>Game Code: <span id="text_game_code"></span></h2>
+	<div id ="text_players" style="height:280px;width:420px;border:2px solid #ccc;font:26px/46px Georgia, Garamond, Serif;overflow:auto;"></div>
+	<button id="button_host_start_game" onclick="host_start_game()" style="display: none"> Start Game </button>
+	<button id="button_leave_game" onclick="leave_game()"> Leave Game </button>
+</div>
+<div id="in_game_pane" style="display: none">
+	<input type="checkbox" id="checkbox_cities" checked value="Cities" onclick="visible_cities()">
+	<label for="checkbox_cities"> Cities </label>
+	<input type="checkbox" id="checkbox_paths" value="Paths" onclick="visible_paths()">
+	<label for="checkbox_paths"> Paths </label>
+	<br>
+	<img src="{{url_for('static', filename='map_base.png')}}" style="z-index: 10; position: absolute"/>
+	<img id="img_cities_layer" src="{{url_for('static', filename='map_cities.png')}}" style="z-index: 20; position: absolute; display: inline"/>
+	<img id="img_paths_layer" src="{{url_for('static', filename='map_paths.png')}}" style="z-index: 30; position: absolute; display: none"/>
+	<canvas id="game_canvas" style="z-index: 20;"></canvas>
+</div>
+
+
+<script>
 	// Settings
 	var domain = document.location;
 	var user_id = null, user_dn = null, user_logins = null, user_game_code = null, user_game_instance = null;
@@ -15,6 +48,53 @@
 	// Global Variables
 	var continue_updating = true;
 	var control_update = true;
+	var city_names = {
+		1:"Seattle",
+		2:"San Francisco",
+		3:"Los Angeles",
+		4:"Helena",
+		5:"Salt Lake City",
+		6:"Phoenix",
+		7:"Denver",
+		8:"Minneapolis",
+		9:"Lubbock",
+		10:"San Antonio",
+		11:"Chicago",
+		12:"St. Louis",
+		13:"New Orleans",
+		14:"New York",
+		15:"Richmond",
+		16:"Atlanta",
+		17:"Miami"
+	}
+	
+	var cities_loc = {
+		1:[267, 61],
+		2:[194, 248],
+		3:[233, 385],
+		4:[468, 101],
+		5:[377, 246],
+		6:[391, 422],
+		7:[522, 289],
+		8:[745, 148],
+		9:[606, 451],
+		10:[669, 561],
+		11:[857, 228],
+		12:[831, 344],
+		13:[877, 578],
+		14:[1169, 246],
+		15:[1134, 378],
+		16:[978, 466],
+		17:[1070, 595]
+	}
+	
+	var canvas, canvas_h, canvas_w, ctx;
+	canvas = document.getElementById("game_canvas");
+	ctx = canvas.getContext("2d");
+	canvas.width = document.body.clientWidth;
+	canvas.height = document.body.clientHeight;
+	document.onmousedown = mouseDown;
+	document.onmousemove = mouseMove;
 	
 	function login(){
 		var login_id = document.getElementById('input_login_id').value;
@@ -132,14 +212,18 @@
 	}
 	
 	function host_start_game(){
-		document.getElementById('lobby_pane').style.display = "none";
-		document.getElementById('in_game_pane').style.display = "inline";
 		fetch(domain + "startgame?code=" + user_game_code + "&id=" + user_id).then(function(response) {
 			return response.text().then(function(msg_str) {
 				if (msg_str != "starting"){
 					alert("Error response code: " + msg_str);
 				}
 			});
+		});
+	}
+	
+	function game_kick(player_id){
+		fetch(domain + "/gamekick?id=" + user_id + "&kick=" + player_id + "&code=" + user_game_code).then(function(response) {
+			return response.text().then(function(chat_str) {});
 		});
 	}
 	
@@ -153,10 +237,18 @@
 		document.getElementById('text_game_code').innerHTML = user_game_code;
 		
 		while (continue_updating) {
-			fetch(domain + "getgame?code=" + user_game_code).then(function(response) {
+			fetch(domain + "getgame?code=" + user_game_code + "&id=" + user_id).then(function(response) {
 				return response.text().then(function(instance_info) {
+					if (instance_info == "kicked"){
+						document.getElementById('lobby_pane').style.display = "none";
+						document.getElementById('init_menu_pane').style.display = "inline";
+						continue_updating = false;
+						control_update = true;
+						alert("Kicked from game.");
+					}
 					instance_info = JSON.parse(instance_info);
-					if (instance_info["stage"] == "in_game"){
+					console.log(instance_info["game_stage"]);
+					if (instance_info["game_stage"] == "in_game"){
 						if(document.getElementById('lobby_pane').style.display == "inline"){
 							document.getElementById('lobby_pane').style.display = "none";
 							document.getElementById('in_game_pane').style.display = "inline";
@@ -166,7 +258,7 @@
 						for (player of instance_info["players"]){
 							var suffix = "";
 							if (instance_info["host"] == user_id && player[0] != user_id){
-								suffix = "<button onclick='game_kick(" + player[0] + ")'> Kick </button>";
+								suffix = "<button onclick='game_kick(\"" + player[0] + "\")'> Kick </button>";
 							}else if (player[0] == user_id){
 								suffix = " (Me)";
 							}
@@ -193,6 +285,33 @@
 			document.getElementById('img_paths_layer').style.display = "inline";
 		}else{
 			document.getElementById('img_paths_layer').style.display = "none";
+		}
+	}
+	
+	function mouseDown(e){}
+	
+	function clear_canvas(){
+		ctx.globalCompositeOperation = "source-over";
+		ctx.fillStyle = "white";//"rgba(0, 0, 0, 0)";
+    	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	}
+	
+	function mouseMove(e){
+		clear_canvas();
+		var city_button_radius = 50;
+		
+		var mouse_x = e.offsetX;
+ 	 	var mouse_y = e.offsetY;
+		
+		for (const [key, loc] of Object.entries(cities_loc)) {
+			city_x = loc[0];
+			city_y = loc[1];
+			var distance = Math.sqrt(Math.pow(city_x - mouse_x, 2) + Math.pow(city_y - mouse_y, 2));
+			if (distance <= city_button_radius){
+				ctx.beginPath();
+				ctx.arc(city_x, city_y, city_button_radius, 0, 2 * Math.PI);
+				ctx.stroke();
+			}
 		}
 	}
 	
@@ -223,38 +342,5 @@
 	
 	
 	</script>
-</head>
-<body>
-<div id="login_pane">
-	Login ID: <input id="input_login_id"> </br>
-	Display Name: <input id="input_login_dn"> </br>
-	<button id="button_login" onclick="login()"> Login </button>
-	<button id="button_create_login" onclick="create_login()"> Create Login </button>
-</div>
-<div id="init_menu_pane" style="display: none">
-	<h2>Hello <span id="init_menu_user_dn" style="font-style: italic;"> </span>,</h2> <br>
-	<p style="margin-left: 40px">Game Code: <input id="input_game_code"></p>
-	<p style="margin-left: 40px"><button id="button_game_join" onclick="join_game()"> Join Game </button></p>
-	<p style="margin-left: 40px"><button id="button_game_host" onclick="host_game()"> Host Game </button></p>
-</div>
-<div id="lobby_pane" style="display: none">
-	<h2>Game Code: <span id="text_game_code"></span></h2>
-	<div id ="text_players" style="height:280px;width:420px;border:2px solid #ccc;font:26px/46px Georgia, Garamond, Serif;overflow:auto;"></div>
-	<button id="button_host_start_game" onclick="host_start_game()" style="display: none"> Start Game </button>
-	<button id="button_leave_game" onclick="leave_game()"> Leave Game </button>
-</div>
-<div id="in_game_pane" style="display: none">
-	<input type="checkbox" id="checkbox_cities" value="Cities" onclick="visible_cities()">
-	<label for="checkbox_cities"> Cities </label>
-	<input type="checkbox" id="checkbox_paths" value="Paths" onclick="visible_paths()">
-	<label for="checkbox_paths"> Paths </label>
-	<br>
-	<img src="{{url_for('static', filename='map_base.png')}}" style="z-index: 10; position: absolute"/>
-	<img id="img_cities_layer" src="{{url_for('static', filename='map_cities.png')}}" style="z-index: 20; position: absolute; display: none"/>
-	<img id="img_paths_layer" src="{{url_for('static', filename='map_paths.png')}}" style="z-index: 30; position: absolute; display: none"/>
-</div>
-
-
-
 </body>
 </html>

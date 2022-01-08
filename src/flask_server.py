@@ -6,7 +6,8 @@ from datetime import datetime
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = "../assets/"
 
-logins = {"cam":{"display_name": "Cameron", "game_instance": "none", "logins": 0}}
+logins = {"cam":{"display_name": "Cameron", "game_instance": "none", "logins": 0},
+        "bob":{"display_name": "Bob", "game_instance": "none", "logins": 0}}
 instances = {}
 max_players = 4
 
@@ -167,7 +168,7 @@ def create_instance():
     instance_id = str(uuid4())[:8]
     while instance_id in instances:
         instance_id = str(uuid4())[:8]
-    instances[instance_id] = {"players":[], "game_data":{}, "game_stage":"init", "host":user_id}
+    instances[instance_id] = {"players":[(user_id, logins[user_id]["display_name"])], "game_data":{}, "game_stage":"init", "host":user_id}
     return instance_id
 
 
@@ -178,6 +179,7 @@ def join_instance():
     if instance_id in instances and user_id in logins:
         if instances[instance_id]["game_stage"] != "init":
             return "game in progress"
+        print(instances[instance_id]["players"])
         for player_id, player_dn in instances[instance_id]["players"]:
             if player_id == user_id:
                 return "joined"
@@ -192,13 +194,32 @@ def join_instance():
 @app.route("/getgame")
 def get_instance():
     instance_id = request.args.get('code', default='', type=str)
+    user_id = request.args.get('id', default='', type=str)
     if instance_id in instances:
         instance = instances[instance_id]
-        instance["ts"] = str(datetime.now())
-        return json.dumps(instance)
+        for player_id, player_dn in instances[instance_id]["players"]:
+            if player_id == user_id:
+                instance["ts"] = str(datetime.now())
+                return json.dumps(instance)
+        else:
+            return "kicked"
     else:
         return "failed"
 
+@app.route("/gamekick")
+def game_kick():
+    user_id = request.args.get('id', default='', type=str)
+    kick_id = request.args.get('kick', default='', type=str)
+    instance_id = request.args.get('code', default='', type=str)
+    if instance_id in instances:
+        if instances[instance_id]["host"] == user_id:
+            for index, (player_id, player_dn) in enumerate(instances[instance_id]["players"]):
+                if player_id == kick_id:
+                    instances[instance_id]["players"].pop(index)
+                    return "kicked_player"
+            return "invalid_id"
+        else:
+            return "not_host"
 
 def decode_move(move, instance_id):
     # Move code will look like this:
@@ -207,9 +228,9 @@ def decode_move(move, instance_id):
     # M# - move to adjacent city
     # B# - burns card to city
     # P# - moves to player in another city
-    # For card played where # indicates the card number: C#
+    # For card played where # indicates the card number: C# 
     pass
-    
+
 @app.route("/play")
 def play_move():
     instance_id = request.args.get('code', default='', type=str)

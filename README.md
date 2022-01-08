@@ -7,26 +7,6 @@ Based on the board game Pandemic
 ## Flask Routes
 
 
-## Redis
-*Key format:* '[Game Instance ID]-[Directory]-[Tag]'
-*List of keys for every game instance:*
-
-'[Game Instance ID]-[Info]'
-> JSON containing current game info including the number of outbreaks, infection rate, disease counts, played and unplayed player cards, played and unplayed infection cards
-
-'[Game Instance ID]-[Cures]'
-> JSON containing status of cures
-
-'[Game Instance ID]-[Players]'
-> JSON containing list of active players and their respective IDs
-
-'[Game Instance ID]-[Players]-[Player ID]'
-> JSON containing role of player and cards withheld
-
-'[Game Instance ID]-[Cities]'
-> JSON containing cities and their respective disease counts
-
-
 
 ## Assets
 
